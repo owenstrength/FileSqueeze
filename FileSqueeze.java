@@ -1,4 +1,5 @@
 import java.io.*;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.Map.Entry;
@@ -171,12 +172,17 @@ public class FileSqueeze {
         inputFolderName = inputFileName.substring(0, inputFileName.lastIndexOf("."));
 
         File theDir = new File(inputFolderName + "/");
-        theDir.mkdirs();
+
         if (!theDir.exists()) {
+            theDir.mkdirs();
+        } else {
+            theDir.delete();
             theDir.mkdirs();
         }
 
+        // create combined file
         File combinedFile = new File(theDir, "combined.bin");
+
         System.out.println(combinedFile);
 
         StringBuilder tableBuilder = new StringBuilder();
@@ -255,10 +261,13 @@ public class FileSqueeze {
                 String tableString = BinaryString.unpackBinaryString(tableBytes);
                 String[] tableEntries = tableString.split("\n");
 
+                System.out.println(tableString);
+
                 codes = new HashMap<>();
                 for (String entry : tableEntries) {
                     String[] parts = entry.split(" ");
-                    char key = (char) Integer.parseInt(parts[0], 2);
+                    BigInteger bigIntegerKey = new BigInteger(parts[0], 2);
+                    char key = (char) bigIntegerKey.intValue();
                     String value = parts[1];
                     codes.put(key, value);
                 }
