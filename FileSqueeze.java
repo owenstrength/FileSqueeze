@@ -2,20 +2,19 @@ import java.io.*;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.*;
 import java.util.Map.Entry;
 
 /**
  * File Squeeze is a HuffmanCoding Based File Compression Program. It takes in a
  * file and compresses it into a
- * folder with a table and encoded bytes. Then it can take that folder and
- * decompress it back into the original file.
+ * .filesqueeze file and then can decompress it back into the original file.
+ *
  * On Average the Compression ratio is about 0.68. (compressed file / original
  * file)
  * 
  * @author Owen Strength
- * @version 1.0 9/9/2023
+ * @version 1.2 1/23/2024
  * @category File Compression
  */
 public class FileSqueeze {
@@ -200,7 +199,6 @@ public class FileSqueeze {
         try {
             String[] lines = inputString.split("\n");
             for (String line : lines) {
-                System.out.println(line);
                 if (line.charAt(0) == '\\') {
                     char c = "\n".charAt(0);
                     String code = line.substring(3, line.length());
@@ -228,8 +226,7 @@ public class FileSqueeze {
         InputStream inputStream = new FileInputStream(theDir);
         byte[] encodedLengthBytes = inputStream.readNBytes(4);
         int encodedLength = Integer.parseInt(BinaryString.unpackBinaryString(encodedLengthBytes), 2);
-        System.out.println(encodedLengthBytes);
-        System.out.println(encodedLength);
+
         encodedBytes = inputStream.readNBytes(encodedLength);
 
         byte[] tableBytes = inputStream.readAllBytes();
@@ -268,6 +265,7 @@ public class FileSqueeze {
             fos.close();
         } catch (IOException e) {
             e.printStackTrace();
+            System.exit(0);
         }
 
     }
@@ -299,67 +297,4 @@ public class FileSqueeze {
         return output;
     }
 
-}
-
-/** The MinHeapNode Class is used for building the HuffmanTree */
-class MinHeapNode implements Comparable<MinHeapNode> {
-    char data;
-    int freq;
-    MinHeapNode left, right;
-
-    MinHeapNode(char data, int freq) {
-        this.data = data;
-        this.freq = freq;
-    }
-
-    public int compareTo(MinHeapNode other) {
-        return this.freq - other.freq;
-    }
-}
-
-/** BinaryString class for packing and unpacking binary strings */
-class BinaryString {
-
-    /** Pack a binary string into a byte array */
-    public static byte[] packBinaryString(String binaryString) {
-        List<Byte> packedData = new ArrayList<>();
-        byte currentByte = 0;
-        int bitCount = 0;
-
-        for (char bit : binaryString.toCharArray()) {
-            currentByte |= (bit - '0') << (7 - bitCount);
-            bitCount++;
-
-            if (bitCount == 8) {
-                packedData.add(currentByte);
-                currentByte = 0;
-                bitCount = 0;
-            }
-        }
-
-        // Add the last byte if it's not complete
-        if (bitCount > 0) {
-            packedData.add(currentByte);
-        }
-
-        byte[] packedArray = new byte[packedData.size()];
-        for (int i = 0; i < packedData.size(); i++) {
-            packedArray[i] = packedData.get(i);
-        }
-
-        return packedArray;
-    }
-
-    /** Unpack a binary string from a byte array */
-    public static String unpackBinaryString(byte[] packedData) {
-        StringBuilder binaryString = new StringBuilder();
-
-        for (byte packedByte : packedData) {
-            for (int i = 7; i >= 0; i--) {
-                binaryString.append((packedByte >> i) & 1);
-            }
-        }
-
-        return binaryString.toString();
-    }
 }
