@@ -67,8 +67,8 @@ public class FileSqueeze {
             inputFolderName = args[1];
 
             try {
-                // inputFileToTable(inputFolderName);
-                importTableFromFile2(inputFolderName);
+                inputFileToTable(inputFolderName);
+                // importTableFromFile2(inputFolderName);
                 decode();
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
@@ -141,6 +141,11 @@ public class FileSqueeze {
         File theDir = new File(inputFolderName + "/");
 
         if (Files.notExists(theDir.toPath())) {
+            try {
+                Files.createDirectories(theDir.toPath());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             theDir.mkdirs();
 
         }
@@ -318,6 +323,17 @@ public class FileSqueeze {
         // InputStream inputStream = new FileInputStream(theDir + "/encodedBytes.bin");
         // encodedBytes = inputStream.readAllBytes();
         // inputStream.close();
+
+        // this kinda works but not really, might be easier to read entire file in
+        // and then parse it
+        InputStream inputStream = new FileInputStream(theDir + "/combined.bin");
+        byte[] encodedLengthBytes = inputStream.readNBytes(2);
+        int encodedLength = Integer.parseInt(BinaryString.unpackBinaryString(encodedLengthBytes), 2);
+        System.out.println(encodedLengthBytes);
+        System.out.println(encodedLength);
+        encodedBytes = inputStream.readNBytes(encodedLength * 4 + 16);
+
+        inputStream.close();
 
         encodedString = BinaryString.unpackBinaryString(encodedBytes);
 
