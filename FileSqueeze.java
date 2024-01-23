@@ -1,26 +1,20 @@
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.Map.Entry;
 
 /**
  * File Squeeze is a HuffmanCoding Based File Compression Program. It takes in a
  * file and compresses it into a
- * folder with a table and encoded bytes. Then it can take that folder and
- * decompress it back into the original file.
+ * .filesqueeze file and then can decompress it back into the original file.
+ *
  * On Average the Compression ratio is about 0.68. (compressed file / original
  * file)
  * 
  * @author Owen Strength
- * @version 1.0 9/9/2023
+ * @version 1.2 1/23/2024
  * @category File Compression
  */
 public class FileSqueeze {
@@ -43,8 +37,8 @@ public class FileSqueeze {
 
         if (args.length == 0 || args[0].equals("-h")) {
             System.out.println("HELP:");
-            System.out.println("Usage For Encoding: java FileSquueze.java -e <String of path to filename>");
-            System.out.println("Usage For Decoding: java FileSquueze.java -d <String of path to foldername>");
+            System.out.println("Usage For Encoding: java FileSqueeze.java -e <String of path to filename>");
+            System.out.println("Usage For Decoding: java FileSqueeze.java -d <String of path to foldername>");
             System.exit(0);
         }
 
@@ -66,14 +60,15 @@ public class FileSqueeze {
             exportTableToFile(minHeap);
 
             System.out.println("Compression Completed!");
-            System.out.println("To Decompress Run (in this directory): java FileSquueze.java -d " + inputFolderName);
+            System.out.println("To Decompress Run (in this directory): java FileSqueeze.java -d " + inputFolderName);
             System.exit(0);
 
         } else if (args[0].equalsIgnoreCase("-d")) {
             inputFolderName = args[1];
 
             try {
-                inputFileToTable(inputFolderName);
+                // inputFileToTable(inputFolderName);
+                // importTableFromFile2(inputFolderName);
                 decode();
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
@@ -89,10 +84,12 @@ public class FileSqueeze {
         } else {
             System.out.println(args[0] + " is not a valid argument");
             System.out.println(args[0] == "-e");
-            System.out.println("Usage For Encoding: java FileSquueze.java -e <String of path to filename>");
-            System.out.println("Usage For Decoding: java FileSquueze.java -d <String of path to foldername>");
+            System.out.println("Usage For Encoding: java FileSqueeze.java -e <String of path to filename>");
+            System.out.println("Usage For Decoding: java FileSqueeze.java -d <String of path to foldername>");
             System.exit(0);
         }
+        System.exit(0);
+
     }
 
     /** creating Huffman tree */
@@ -141,40 +138,50 @@ public class FileSqueeze {
 
     /** exporting table to file */
     private static void exportTableToFile(PriorityQueue<MinHeapNode> minHeapIn) {
-
         inputFolderName = inputFileName.substring(0, inputFileName.lastIndexOf("."));
 
-        File theDir = new File(inputFolderName + "/");
-        if (!theDir.exists()) {
-            theDir.mkdirs();
+        StringBuilder tableBuilder = new StringBuilder();
+
+        for (var entry : codes.entrySet()) {
+            if (entry.getKey() == "\n".charAt(0)) {
+                tableBuilder.append("\\n").append(" ").append(entry.getValue()).append("\n");
+                continue;
+            }
+            tableBuilder.append(entry.getKey()).append(" ").append(entry.getValue()).append("\n");
         }
 
-        File tableFile = new File(theDir, "table.txt");
-        File bytesFile = new File(theDir, "encodedBytes.bin");
+        String tableString = tableBuilder.toString();
+        String binaryTableString = new BigInteger(tableString.getBytes(StandardCharsets.UTF_8)).toString(2);
+        byte[] tableBytes = new BigInteger(binaryTableString, 2).toByteArray();
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(tableFile))) {
-            FileOutputStream fos = new FileOutputStream(bytesFile);
-            fos.write(encodedBytes);
-            fos.close();
+        byte[] combinedBytes = combineBytes(encodedBytes, tableBytes);
 
-            for (var entry : codes.entrySet()) {
-                if (entry.getKey() == "\n".charAt(0)) {
-                    writer.write("\\n" + " " + entry.getValue());
-                    writer.newLine();
-                    continue;
-                }
-                writer.write(entry.getKey() + " " + entry.getValue());
-                writer.newLine();
-            }
+        ByteBuffer byteBuffer = ByteBuffer.allocate(4);
+        byteBuffer.putInt(encodedBytes.length);
+        byte[] encodedLengthBytes = byteBuffer.array();
 
-            writer.close();
+        combinedBytes = combineBytes(encodedLengthBytes, combinedBytes);
 
+        File combinedFile = new File(inputFolderName + ".filesqueeze");
+
+        // create new file called inputFolderName + ".filesqueeze"
+        try {
+            combinedFile.createNewFile();
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        try (RandomAccessFile raf = new RandomAccessFile(combinedFile, "rw")) {
+            raf.write(combinedBytes);
+
+            raf.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
     }
 
-    /** inputting string to compress */
+    /** inputing string to compress */
     private static void inputStringToCompress(String filename) throws FileNotFoundException, IOException {
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line = reader.readLine();
@@ -187,25 +194,23 @@ public class FileSqueeze {
         }
     }
 
-    /** inputting table to decode frome file */
-    private static void inputFileToTable(String folderename) throws FileNotFoundException, IOException {
-        try (BufferedReader reader = new BufferedReader(new FileReader(folderename + "/table.txt"))) {
-            String line = reader.readLine();
-            while (line != null) {
+    /** converts string to huffman table */
+    private static void stringToTable(String inputString) {
+        try {
+            String[] lines = inputString.split("\n");
+            for (String line : lines) {
                 if (line.charAt(0) == '\\') {
                     char c = "\n".charAt(0);
                     String code = line.substring(3, line.length());
                     codesIn.put(code, c);
-                    line = reader.readLine();
                     continue;
                 }
                 char c = line.charAt(0);
                 String code = line.substring(2, line.length());
                 codesIn.put(code, c);
-                line = reader.readLine();
             }
         } catch (Exception e) {
-            throw new RuntimeException("Error reading  huffman table file", e);
+            throw new RuntimeException("Error reading huffman table string", e);
         }
     }
 
@@ -213,14 +218,25 @@ public class FileSqueeze {
     private static void decode() throws IOException {
         encodedBytes = null;
 
-        File theDir = new File(inputFolderName + "/");
+        File theDir = new File(inputFolderName + ".filesqueeze");
         if (!theDir.exists()) {
             throw new IOException("No Folder with Name: " + inputFileName, null);
         }
 
-        InputStream inputStream = new FileInputStream(theDir + "/encodedBytes.bin");
-        encodedBytes = inputStream.readAllBytes();
+        InputStream inputStream = new FileInputStream(theDir);
+        byte[] encodedLengthBytes = inputStream.readNBytes(4);
+        int encodedLength = Integer.parseInt(BinaryString.unpackBinaryString(encodedLengthBytes), 2);
+
+        encodedBytes = inputStream.readNBytes(encodedLength);
+
+        byte[] tableBytes = inputStream.readAllBytes();
         inputStream.close();
+
+        String tableStringBin = new BigInteger(1, tableBytes).toString(2);
+        byte[] newBytes = new BigInteger(tableStringBin, 2).toByteArray();
+
+        String tableString = new String(newBytes, StandardCharsets.UTF_8);
+        stringToTable(tableString);
 
         encodedString = BinaryString.unpackBinaryString(encodedBytes);
 
@@ -249,71 +265,36 @@ public class FileSqueeze {
             fos.close();
         } catch (IOException e) {
             e.printStackTrace();
+            System.exit(0);
         }
 
     }
 
-}
-
-/** The MinHeapNode Class is used for building the HuffmanTree */
-class MinHeapNode implements Comparable<MinHeapNode> {
-    char data;
-    int freq;
-    MinHeapNode left, right;
-
-    MinHeapNode(char data, int freq) {
-        this.data = data;
-        this.freq = freq;
+    private static byte[] combineBytes(byte[] arr1, byte[] arr2) {
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            outputStream.write(arr1);
+            outputStream.write(arr2);
+            return outputStream.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new byte[0];
+        }
     }
 
-    public int compareTo(MinHeapNode other) {
-        return this.freq - other.freq;
-    }
-}
+    public static byte[] padToFourBytes(byte[] input) {
+        byte[] output = new byte[4];
+        int inputLength = input.length;
+        int paddingLength = 4 - inputLength;
 
-/** BinaryString class for packing and unpacking binary strings */
-class BinaryString {
-
-    /** Pack a binary string into a byte array */
-    public static byte[] packBinaryString(String binaryString) {
-        List<Byte> packedData = new ArrayList<>();
-        byte currentByte = 0;
-        int bitCount = 0;
-
-        for (char bit : binaryString.toCharArray()) {
-            currentByte |= (bit - '0') << (7 - bitCount);
-            bitCount++;
-
-            if (bitCount == 8) {
-                packedData.add(currentByte);
-                currentByte = 0;
-                bitCount = 0;
-            }
+        // Add padding at the beginning
+        for (int i = 0; i < paddingLength; i++) {
+            output[i] = 0;
         }
 
-        // Add the last byte if it's not complete
-        if (bitCount > 0) {
-            packedData.add(currentByte);
-        }
+        // Copy the input bytes to the end
+        System.arraycopy(input, 0, output, paddingLength, inputLength);
 
-        byte[] packedArray = new byte[packedData.size()];
-        for (int i = 0; i < packedData.size(); i++) {
-            packedArray[i] = packedData.get(i);
-        }
-
-        return packedArray;
+        return output;
     }
 
-    /** Unpack a binary string from a byte array */
-    public static String unpackBinaryString(byte[] packedData) {
-        StringBuilder binaryString = new StringBuilder();
-
-        for (byte packedByte : packedData) {
-            for (int i = 7; i >= 0; i--) {
-                binaryString.append((packedByte >> i) & 1);
-            }
-        }
-
-        return binaryString.toString();
-    }
 }
