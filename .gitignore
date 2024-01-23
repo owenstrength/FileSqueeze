@@ -2,4 +2,5 @@ testfile2.txt
 testfile2OUT.txt
 testfile2.filesqueeze
 
-build/
+tests/
+/build
