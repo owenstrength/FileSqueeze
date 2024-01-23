@@ -1,6 +1,7 @@
 import java.io.*;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -56,7 +57,7 @@ public class FileSqueeze {
 
             buildEncodedString();
 
-            exportTableToFile2(minHeap);
+            exportTableToFile(minHeap);
 
             System.out.println("Compression Completed!");
             System.out.println("To Decompress Run (in this directory): java FileSqueeze.java -d " + inputFolderName);
@@ -135,33 +136,58 @@ public class FileSqueeze {
 
     /** exporting table to file */
     private static void exportTableToFile(PriorityQueue<MinHeapNode> minHeapIn) {
-
         inputFolderName = inputFileName.substring(0, inputFileName.lastIndexOf("."));
 
         File theDir = new File(inputFolderName + "/");
-        if (!theDir.exists()) {
+
+        if (Files.notExists(theDir.toPath())) {
             theDir.mkdirs();
+
         }
+
+        System.out.println(theDir.exists());
 
         File tableFile = new File(theDir, "table.txt");
         File bytesFile = new File(theDir, "encodedBytes.bin");
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(tableFile))) {
             FileOutputStream fos = new FileOutputStream(bytesFile);
+            fos.write(encodedBytes.length);
             fos.write(encodedBytes);
             fos.close();
+
+            StringBuilder tableBuilder = new StringBuilder();
 
             for (var entry : codes.entrySet()) {
                 if (entry.getKey() == "\n".charAt(0)) {
                     writer.write("\\n" + " " + entry.getValue());
                     writer.newLine();
+                    tableBuilder.append("\\n").append(" ").append(entry.getValue()).append("\n");
                     continue;
                 }
                 writer.write(entry.getKey() + " " + entry.getValue());
                 writer.newLine();
+                tableBuilder.append(entry.getKey()).append(" ").append(entry.getValue()).append("\n");
             }
 
             writer.close();
+
+            String tableString = tableBuilder.toString();
+            byte[] tableBytes = BinaryString.packBinaryString(tableString);
+
+            byte[] combinedBytes = combineBytes(encodedBytes, tableBytes);
+            combinedBytes = combineBytes(BinaryString.packBinaryString(Integer.toString(encodedBytes.length)),
+                    combinedBytes);
+
+            File combinedFile = new File(theDir, "combined.bin");
+
+            try (RandomAccessFile raf = new RandomAccessFile(combinedFile, "rw")) {
+                raf.write(combinedBytes);
+
+                raf.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -177,7 +203,6 @@ public class FileSqueeze {
             theDir.mkdirs();
         } else {
             theDir.delete();
-            theDir.mkdirs();
         }
 
         // create combined file
@@ -199,7 +224,7 @@ public class FileSqueeze {
         String tableString = tableBuilder.toString();
         byte[] tableBytes = BinaryString.packBinaryString(tableString);
 
-        System.out.println(tableBytes);
+        System.out.println(tableBytes.toString());
 
         try (RandomAccessFile raf = new RandomAccessFile(combinedFile, "rw")) {
             raf.writeInt(tableBytes.length);
@@ -323,6 +348,17 @@ public class FileSqueeze {
             e.printStackTrace();
         }
 
+    }
+
+    private static byte[] combineBytes(byte[] arr1, byte[] arr2) {
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            outputStream.write(arr1);
+            outputStream.write(arr2);
+            return outputStream.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return new byte[0];
+        }
     }
 
 }
