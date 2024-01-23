@@ -1,13 +1,5 @@
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -43,8 +35,8 @@ public class FileSqueeze {
 
         if (args.length == 0 || args[0].equals("-h")) {
             System.out.println("HELP:");
-            System.out.println("Usage For Encoding: java FileSquueze.java -e <String of path to filename>");
-            System.out.println("Usage For Decoding: java FileSquueze.java -d <String of path to foldername>");
+            System.out.println("Usage For Encoding: java FileSqueeze.java -e <String of path to filename>");
+            System.out.println("Usage For Decoding: java FileSqueeze.java -d <String of path to foldername>");
             System.exit(0);
         }
 
@@ -63,17 +55,18 @@ public class FileSqueeze {
 
             buildEncodedString();
 
-            exportTableToFile(minHeap);
+            exportTableToFile2(minHeap);
 
             System.out.println("Compression Completed!");
-            System.out.println("To Decompress Run (in this directory): java FileSquueze.java -d " + inputFolderName);
+            System.out.println("To Decompress Run (in this directory): java FileSqueeze.java -d " + inputFolderName);
             System.exit(0);
 
         } else if (args[0].equalsIgnoreCase("-d")) {
             inputFolderName = args[1];
 
             try {
-                inputFileToTable(inputFolderName);
+                // inputFileToTable(inputFolderName);
+                importTableFromFile2(inputFolderName);
                 decode();
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
@@ -89,8 +82,8 @@ public class FileSqueeze {
         } else {
             System.out.println(args[0] + " is not a valid argument");
             System.out.println(args[0] == "-e");
-            System.out.println("Usage For Encoding: java FileSquueze.java -e <String of path to filename>");
-            System.out.println("Usage For Decoding: java FileSquueze.java -d <String of path to foldername>");
+            System.out.println("Usage For Encoding: java FileSqueeze.java -e <String of path to filename>");
+            System.out.println("Usage For Decoding: java FileSqueeze.java -d <String of path to foldername>");
             System.exit(0);
         }
     }
@@ -174,7 +167,47 @@ public class FileSqueeze {
         }
     }
 
-    /** inputting string to compress */
+    private static void exportTableToFile2(PriorityQueue<MinHeapNode> minHeapIn) {
+        inputFolderName = inputFileName.substring(0, inputFileName.lastIndexOf("."));
+
+        File theDir = new File(inputFolderName + "/");
+        theDir.mkdirs();
+        if (!theDir.exists()) {
+            theDir.mkdirs();
+        }
+
+        File combinedFile = new File(theDir, "combined.bin");
+        System.out.println(combinedFile);
+
+        StringBuilder tableBuilder = new StringBuilder();
+        for (var entry : codes.entrySet()) {
+            if (entry.getKey() == "\n".charAt(0)) {
+                tableBuilder.append(Integer.toBinaryString('\\')).append(Integer.toBinaryString('n')).append(" ")
+                        .append(entry.getValue()).append("\n");
+            } else {
+                tableBuilder.append(Integer.toBinaryString(entry.getKey())).append(" ").append(entry.getValue())
+                        .append("\n");
+            }
+        }
+
+        String tableString = tableBuilder.toString();
+        byte[] tableBytes = BinaryString.packBinaryString(tableString);
+
+        System.out.println(tableBytes);
+
+        try (RandomAccessFile raf = new RandomAccessFile(combinedFile, "rw")) {
+            raf.writeInt(tableBytes.length);
+            raf.write(tableBytes);
+            raf.write(encodedBytes);
+
+            raf.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    /** inputing string to compress */
     private static void inputStringToCompress(String filename) throws FileNotFoundException, IOException {
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line = reader.readLine();
@@ -205,7 +238,37 @@ public class FileSqueeze {
                 line = reader.readLine();
             }
         } catch (Exception e) {
-            throw new RuntimeException("Error reading  huffman table file", e);
+            throw new RuntimeException("Error reading huffman table file", e);
+        }
+    }
+
+    private static void importTableFromFile2(String inputFolderName) {
+        try {
+            File theDir = new File(inputFolderName + "/");
+            File combinedFile = new File(theDir, "combined.bin");
+
+            try (RandomAccessFile raf = new RandomAccessFile(combinedFile, "r")) {
+                int tableLength = raf.readInt();
+                byte[] tableBytes = new byte[tableLength];
+                raf.read(tableBytes);
+
+                String tableString = BinaryString.unpackBinaryString(tableBytes);
+                String[] tableEntries = tableString.split("\n");
+
+                codes = new HashMap<>();
+                for (String entry : tableEntries) {
+                    String[] parts = entry.split(" ");
+                    char key = (char) Integer.parseInt(parts[0], 2);
+                    String value = parts[1];
+                    codes.put(key, value);
+                }
+
+                long encodedLength = raf.length() - raf.getFilePointer();
+                encodedBytes = new byte[(int) encodedLength];
+                raf.read(encodedBytes);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -218,9 +281,9 @@ public class FileSqueeze {
             throw new IOException("No Folder with Name: " + inputFileName, null);
         }
 
-        InputStream inputStream = new FileInputStream(theDir + "/encodedBytes.bin");
-        encodedBytes = inputStream.readAllBytes();
-        inputStream.close();
+        // InputStream inputStream = new FileInputStream(theDir + "/encodedBytes.bin");
+        // encodedBytes = inputStream.readAllBytes();
+        // inputStream.close();
 
         encodedString = BinaryString.unpackBinaryString(encodedBytes);
 
