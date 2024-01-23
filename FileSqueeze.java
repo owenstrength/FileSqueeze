@@ -1,5 +1,6 @@
 import java.io.*;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
@@ -181,8 +182,15 @@ public class FileSqueeze {
             byte[] tableBytes = BinaryString.packBinaryString(tableString);
 
             byte[] combinedBytes = combineBytes(encodedBytes, tableBytes);
-            combinedBytes = combineBytes(BinaryString.packBinaryString(Integer.toString(encodedBytes.length)),
-                    combinedBytes);
+            ByteBuffer byteBuffer = ByteBuffer.allocate(4);
+            byteBuffer.putInt(encodedBytes.length);
+            byte[] encodedLengthBytes = byteBuffer.array();
+            System.out.println(encodedBytes.length);
+
+            System.out.println(encodedLengthBytes.length);
+            System.out.println(BinaryString.unpackBinaryString(encodedLengthBytes));
+
+            combinedBytes = combineBytes(encodedLengthBytes, combinedBytes);
 
             File combinedFile = new File(theDir, "combined.bin");
 
@@ -278,36 +286,25 @@ public class FileSqueeze {
         }
     }
 
-    private static void importTableFromFile2(String inputFolderName) {
+    private static void inputFileToTable2(String inpuString) {
+        // TODO: implement this
         try {
-            File theDir = new File(inputFolderName + "/");
-            File combinedFile = new File(theDir, "combined.bin");
-
-            try (RandomAccessFile raf = new RandomAccessFile(combinedFile, "r")) {
-                int tableLength = raf.readInt();
-                byte[] tableBytes = new byte[tableLength];
-                raf.read(tableBytes);
-
-                String tableString = BinaryString.unpackBinaryString(tableBytes);
-                String[] tableEntries = tableString.split("\n");
-
-                System.out.println(tableString);
-
-                codes = new HashMap<>();
-                for (String entry : tableEntries) {
-                    String[] parts = entry.split(" ");
-                    BigInteger bigIntegerKey = new BigInteger(parts[0], 2);
-                    char key = (char) bigIntegerKey.intValue();
-                    String value = parts[1];
-                    codes.put(key, value);
+            String line = reader.readLine();
+            while (line != null) {
+                if (line.charAt(0) == '\\') {
+                    char c = "\n".charAt(0);
+                    String code = line.substring(3, line.length());
+                    codesIn.put(code, c);
+                    line = reader.readLine();
+                    continue;
                 }
-
-                long encodedLength = raf.length() - raf.getFilePointer();
-                encodedBytes = new byte[(int) encodedLength];
-                raf.read(encodedBytes);
+                char c = line.charAt(0);
+                String code = line.substring(2, line.length());
+                codesIn.put(code, c);
+                line = reader.readLine();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new RuntimeException("Error reading huffman table file", e);
         }
     }
 
@@ -327,13 +324,17 @@ public class FileSqueeze {
         // this kinda works but not really, might be easier to read entire file in
         // and then parse it
         InputStream inputStream = new FileInputStream(theDir + "/combined.bin");
-        byte[] encodedLengthBytes = inputStream.readNBytes(2);
+        byte[] encodedLengthBytes = inputStream.readNBytes(4);
         int encodedLength = Integer.parseInt(BinaryString.unpackBinaryString(encodedLengthBytes), 2);
         System.out.println(encodedLengthBytes);
         System.out.println(encodedLength);
-        encodedBytes = inputStream.readNBytes(encodedLength * 4 + 16);
+        encodedBytes = inputStream.readNBytes(encodedLength);
 
+        byte[] tableBytes = inputStream.readAllBytes();
         inputStream.close();
+
+        String tableString = BinaryString.unpackBinaryString(tableBytes);
+        inputFileToTable2
 
         encodedString = BinaryString.unpackBinaryString(encodedBytes);
 
@@ -375,6 +376,22 @@ public class FileSqueeze {
             e.printStackTrace();
             return new byte[0];
         }
+    }
+
+    public static byte[] padToFourBytes(byte[] input) {
+        byte[] output = new byte[4];
+        int inputLength = input.length;
+        int paddingLength = 4 - inputLength;
+
+        // Add padding at the beginning
+        for (int i = 0; i < paddingLength; i++) {
+            output[i] = 0;
+        }
+
+        // Copy the input bytes to the end
+        System.arraycopy(input, 0, output, paddingLength, inputLength);
+
+        return output;
     }
 
 }
